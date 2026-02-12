@@ -1,0 +1,27 @@
+# --- Security & Secrets ---
+.env
+
+# --- Python Environment ---
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Databases ---
+# Don't upload local DB files; the setup script recreates them.
+ap_database.db
+company_general_ledger.csv
+
+# --- Local Project Data ---
+# Keep your testing invoices and processed files local.
+invoices_input/
+processed/
+*.pdf
+
+# --- IDE & System Files ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

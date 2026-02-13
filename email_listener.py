@@ -13,35 +13,39 @@ from payment_manager import process_payment
 from accounting_sync import log_to_ledger
 
 
-load_dotenv()
+load_dotenv() 
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 IMAP_SERVER = "imap.gmail.com"
-SLACK_URL = os.getenv("SLACK_WEBHOOK_URL")
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL") 
 
-# Setup Directories
+
+if not SLACK_WEBHOOK_URL:
+    print("❌ CRITICAL WARNING: SLACK_WEBHOOK_URL is missing. Alerts will fail.")
+else:
+    print("✅ Slack Configuration Loaded.")
+
+
 INPUT_DIR = "./invoices_input"
 PAID_DIR = "./processed/paid"
 FAILED_PAY_DIR = "./processed/failed_payments"
 FLAGGED_DIR = "./processed/flagged"
-
 
 for folder in [PAID_DIR, FLAGGED_DIR, FAILED_PAY_DIR]:
     if not os.path.exists(folder):
         os.makedirs(folder)
 
 
+
 def send_slack_alert(filename, reason, details):
-    """
-    Sends a high-priority alert to Slack with specific anomaly details.
-    """
-    # Use SLACK_WEBHOOK_URL from your .env
-    webhook_url = os.getenv("SLACK_WEBHOOK_URL")
-    if not webhook_url:
-        print("⚠️ Slack URL missing in .env")
+    """Sends a high-priority alert to Slack."""
+    print(f"--- 🔔 Attempting Slack Alert for {filename} ---")
+    
+   
+    if not SLACK_WEBHOOK_URL:
+        print("❌ Error: No Slack URL found.")
         return
 
-    # Severity icon logic
     icon = "🚨" if reason in ["PRICE_ANOMALY", "REJECTED"] else "⚠️"
     
     payload = {
@@ -52,14 +56,26 @@ def send_slack_alert(filename, reason, details):
     }
     
     try:
-        response = requests.post(webhook_url, json=payload)
+        response = requests.post(SLACK_WEBHOOK_URL, json=payload)
         if response.status_code == 200:
-            print("🔔 Slack Alert Sent!")
+            print("✅ Slack Alert Sent Successfully.")
         else:
-            print(f"⚠️ Slack returned error: {response.status_code}")
+            print(f"⚠️ Slack API Error: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"Error sending Slack alert: {e}")
+        print(f"❌ Connection Error sending Slack alert: {e}")
 
+def send_slack_payment_error(filename, error_msg):
+    """Specific alert for technical payment failures."""
+    if not SLACK_WEBHOOK_URL: return
+    
+    payload = {
+        "text": f"❌ *Payment Gateway Error*\n*File:* `{filename}`\n*Error:* `{error_msg}`"
+    }
+    try:
+        requests.post(SLACK_WEBHOOK_URL, json=payload)
+        print("✅ Payment Error Alert Sent.")
+    except Exception as e:
+        print(f"❌ Error sending payment alert: {e}")
 
 def get_pdf_text(filepath):
     try:
@@ -73,17 +89,15 @@ def get_pdf_text(filepath):
         return None
 
 def move_file(filepath, dest_folder):
-    """Moves file to destination, adding timestamp if file already exists"""
     filename = os.path.basename(filepath)
     dest_path = os.path.join(dest_folder, filename)
-    
-    # If file exists, rename it (invoice.pdf -> invoice_1.pdf)
     if os.path.exists(dest_path):
         base, ext = os.path.splitext(filename)
         timestamp = int(time.time())
         dest_path = os.path.join(dest_folder, f"{base}_{timestamp}{ext}")
-        
     shutil.move(filepath, dest_path)
+
+# --- 3. MAIN LOGIC ---
 
 def process_attachment(filepath):
     print(f"🚀 AI Agent Activated for: {os.path.basename(filepath)}")
@@ -92,16 +106,18 @@ def process_attachment(filepath):
     text = get_pdf_text(filepath)
     if not text: return
 
-    # 2. THINK (Invoke LangGraph)
+    # 2. THINK
     result = agent_app.invoke({"invoice_text": text, "retry_count": 0})
     decision = result['final_decision']
     reasons = result.get('analysis_notes', [])
     
+  
+    print(f"🧠 AGENT DECISION: '{decision}'") 
+
     # 3. ACT
     if decision == "PAY":
         print(f"✅ APPROVED. Scheduling Payment...")
         data = result.get("extracted_data") 
-        
         if data:
             payment_result = process_payment(
                 amount=data.total_amount,
@@ -128,31 +144,34 @@ def process_attachment(filepath):
                 print(f"📂 Moved to FAILED folder: {FAILED_PAY_DIR}")
 
 
-    elif decision in ["FLAG", "REJECTED"]: 
-        print(f"⚠️ Action Required: {decision}")
+    elif decision in ["FLAG", "REJECTED", "DENY"]: 
+        print(f"⚠️ Action Required: {decision} - Triggering Slack...")
         
-        # Prepare the detail string for Slack
-        reason_text = ", ".join(reasons) if reasons else "Unknown anomaly"
+        if not reasons:
+            reasons = ["⚠️ Critical API/Extraction Failure (or Unknown Error)"]
+
+        reason_text = ", ".join(reasons)
         
-        # --- SEND THE SLACK ALERT ---
         send_slack_alert(
             filename=os.path.basename(filepath),
             reason=decision,
             details=reason_text
         )
         
-        # Move to flagged folder for manual review
-        move_file(filepath, FLAGGED_DIR)
-        print(f"📂 Moved to: {FLAGGED_DIR}")
-
+        target_folder = FAILED_PAY_DIR if decision == "DENY" and not reasons else FLAGGED_DIR
+        move_file(filepath, target_folder)
+        print(f"📂 Moved to: {target_folder}")
+        
+        # Move to FAILED folder (better than FLAGGED for technical errors)
+        target_folder = FAILED_PAY_DIR if decision == "DENY" else FLAGGED_DIR
+        move_file(filepath, target_folder)
+        print(f"📂 Moved to: {target_folder}")
 
 def check_email():
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
-
-        # Search for unread emails containing attachments
         status, messages = mail.search(None, "UNSEEN")
         email_ids = messages[0].split()
 
@@ -168,8 +187,6 @@ def check_email():
                     if isinstance(subject, bytes): subject = subject.decode()
                     
                     print(f"   Subject: {subject}")
-
-                    # Find PDF attachment
                     found_pdf = False
                     for part in msg.walk():
                         if part.get_content_maintype() == "multipart": continue
@@ -186,16 +203,13 @@ def check_email():
                     
                     if not found_pdf:
                         print("   (No PDF found in this email)")
-
         mail.logout()
     except Exception as e:
         print(f"⚠️ Error checking email: {e}")
 
-
 if __name__ == "__main__":
     print(f"📡 Monitoring {EMAIL_USER} for Invoices...")
     print("   (Press Ctrl+C to stop)")
-    
     while True:
         check_email()
-        time.sleep(5) 
+        time.sleep(5)

@@ -1,6 +1,7 @@
 import sqlite3
 from pydantic import BaseModel
-from thefuzz import process  # pip install thefuzz
+from thefuzz import process
+import os
 
 # --- 1. CONNECT TO DB ---
 def get_db_connection():
@@ -46,7 +47,6 @@ def check_line_items(invoice_items, po_description):
             
     return matches > 0
 
-# --- 5. MAIN VALIDATION FUNCTION ---
 def validate_invoice(invoice_data):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -56,8 +56,7 @@ def validate_invoice(invoice_data):
 
     # RULE 1: Check Vendor (Fuzzy Match)
     match_name, score = find_best_vendor_match(invoice_data.vendor_name, cursor)
-    
-    if score < 85: # If confidence is low
+    if score < 85:
         errors.append(f"❌ Vendor '{invoice_data.vendor_name}' not found. (Best match: {match_name} @ {score}%)")
     else:
         print(f"✅ Vendor Verified: {match_name} (Score: {score}%)")
@@ -73,17 +72,22 @@ def validate_invoice(invoice_data):
             if abs(invoice_data.total_amount - po['total_amount']) > 1.0: 
                 errors.append(f"⚠️ Price Mismatch: Invoice ${invoice_data.total_amount} vs PO ${po['total_amount']}")
             
-            # RULE 4: Line Item Check (New!)
+            # RULE 4: Line Item Check
             if not check_line_items(invoice_data.items, po['item_description']):
                  errors.append(f"⚠️ Item Mismatch: Invoice items {invoice_data.items} do not match PO description '{po['item_description']}'")
-
     else:
         errors.append("⚠️ Missing PO Number on invoice.")
 
     conn.close()
 
+    # --- RULE 5: Auto-Approval Limit Check (Corrected variable name) ---
+    max_limit = float(os.getenv("MAX_AUTO_PAY_LIMIT", 2000.0))
+    if invoice_data.total_amount > max_limit:
+        errors.append(f"⚖️ High Value: ${invoice_data.total_amount} exceeds auto-pay limit of ${max_limit}")
+
     # --- DECISION LOGIC ---
     if not errors:
         return ValidationResult(is_valid=True, status="APPROVED", errors=[])
     else:
+        # We use FLAGGED here so the agent knows it's not necessarily "Fraud"
         return ValidationResult(is_valid=False, status="FLAGGED", errors=errors)

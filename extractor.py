@@ -1,61 +1,59 @@
 import os
 import json
-import google.generativeai as genai
+from dotenv import load_dotenv
+from typing import Optional
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from langchain_google_genai import ChatGoogleGenerativeAI 
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
 
-# --- 1. DEFINE THE OUTPUT FORMAT (The Contract) ---
+load_dotenv()
+
+# Define the Data Structure (Schema)
 class InvoiceData(BaseModel):
     vendor_name: str = Field(description="Name of the vendor")
-    invoice_date: str = Field(description="Date in YYYY-MM-DD format")
-    total_amount: float = Field(description="Total amount due")
-    currency: str = Field(description="Currency code (USD, GBP)", default="USD")
-    po_number: Optional[str] = Field(description="PO Number if found", default=None)
-    items: List[str] = Field(description="List of line items", default_factory=list)
+    po_number: Optional[str] = Field(description="PO Number if found, else null")
+    total_amount: float = Field(description="Total amount as a number")
+    currency: str = Field(description="Currency code (USD, INR, EUR)")
+    date: str = Field(description="Invoice date in YYYY-MM-DD format")
+    items: list[str] = Field(description="List of item descriptions")
 
-# --- 2. THE EXTRACTION FUNCTION ---
-def extract_invoice_from_text(invoice_text: str, api_key: str = None):
-    # Auto-load API key if not passed
+# --- UPDATED FUNCTION ---
+def extract_invoice_from_text(invoice_text: str) -> InvoiceData:
+    """
+    Uses LangChain + Gemini to extract structured data from invoice text.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        api_key = os.getenv("GEMINI_API_KEY")
+        raise ValueError("GEMINI_API_KEY missing in .env")
 
-    if not api_key:
-        print("⚠️ No API Key. Using Mock Data.")
-        return InvoiceData(vendor_name="Mock Vendor", invoice_date="2024-01-01", total_amount=100.0, items=[])
-
-    # Configure Gemini
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash',
-        generation_config={"response_mime_type": "application/json"}
+    # Initialize the New Model Wrapper
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        temperature=0,
+        google_api_key=api_key
     )
 
-    # --- THE FIX: STRICTER PROMPT ---
-    prompt = f"""
-    You are a data extraction API. Extract the following fields from the invoice text below.
-    Return ONLY a JSON object. Do not invent new keys. Use EXACTLY these keys:
-    
-    {{
-        "vendor_name": "string",
-        "invoice_date": "YYYY-MM-DD",
-        "total_amount": float,
-        "currency": "string",
-        "po_number": "string (or null)",
-        "items": ["string", "string"]
-    }}
+    # Setup the Parser
+    parser = JsonOutputParser(pydantic_object=InvoiceData)
 
-    INVOICE TEXT:
-    {invoice_text}
-    """
+    # Create the Prompt
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are an expert financial data extractor. Extract the following invoice data exactly."),
+        ("user", "Invoice Text:\n{invoice_text}\n\n{format_instructions}")
+    ])
 
+    # Build the Chain
+    chain = prompt | llm | parser
+
+    # Execute
     try:
-        response = model.generate_content(prompt)
-        data = json.loads(response.text)
-        
-        # Ensure 'items' is always a list (AI sometimes makes it a string)
-        if "items" in data and isinstance(data["items"], str):
-            data["items"] = [data["items"]]
-            
-        return InvoiceData(**data)
+        result = chain.invoke({
+            "invoice_text": invoice_text,
+            "format_instructions": parser.get_format_instructions()
+        })
+        # Convert dictionary back to Pydantic object for validation
+        return InvoiceData(**result)
     except Exception as e:
-        print(f"Error extracting data: {e}")
+        print(f"❌ Extraction Error: {e}")
         return None

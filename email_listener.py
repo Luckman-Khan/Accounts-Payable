@@ -79,11 +79,13 @@ def send_slack_payment_error(filename, error_msg):
 
 def get_pdf_text(filepath):
     try:
-        reader = PdfReader(filepath)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text()
-        return text
+        
+        with open(filepath, 'rb') as f:
+            reader = PdfReader(f)
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text()
+        return text  
     except Exception as e:
         print(f"❌ Corrupt PDF: {e}")
         return None

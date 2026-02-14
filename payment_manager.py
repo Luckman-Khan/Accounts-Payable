@@ -21,7 +21,7 @@ def normalize_currency(currency_input):
     }
     # Clean the input: uppercase it and strip whitespace
     clean_input = str(currency_input).strip()
-    return mapping.get(clean_input, "usd") # Default to 'usd' if unknown
+    return mapping.get(clean_input, "usd")
 
 def process_payment(amount, currency, vendor_name, invoice_ref):
     try:
@@ -29,7 +29,8 @@ def process_payment(amount, currency, vendor_name, invoice_ref):
         stripe_currency = normalize_currency(currency)
         
         # 2. Convert to cents
-        amount_cents = int(amount * 100)
+        amount_float = float(amount)
+        amount_cents = int(amount_float * 100)
         
         print(f"💸 Processing Payment of ${amount} {stripe_currency.upper()} for {vendor_name}...")
         

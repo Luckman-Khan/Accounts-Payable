@@ -41,49 +41,64 @@ def create_invoice(filename, vendor, date, po_number, items, total, notes=""):
     pdf.output(filename)
     print(f"✅ Created: {filename}")
 
-# --- GENERATE THE 3 SCENARIOS ---
 if __name__ == "__main__":
     
-    # 1. THE HAPPY PATH (Matches DB exactly)
+    # 1. THE AUTO-PAY (Matches PO-002, Under $1k limit)
+    # Result: ✅ APPROVED & PAID INSTANTLY
     create_invoice(
-        filename="invoice_good.pdf",
+        filename="invoice_autopay.pdf",
+        vendor="Office Coffee Co",
+        date="2024-02-12",
+        po_number="PO-002",
+        items=[("100kg Premium Coffee Beans", 500.00)],
+        total=500.00,
+        notes="Recurring monthly order."
+    )
+
+    # 2. THE HIGH VALUE (Matches PO-001, but > $1k limit)
+    # Result: ⚖️ FLAGGED (Needs Manager Approval)
+    create_invoice(
+        filename="invoice_high_value.pdf",
         vendor="TechSupplies Ltd",
         date="2024-02-12",
         po_number="PO-001",
         items=[("5x MacBook Pro M3", 5000.00)],
         total=5000.00,
-        notes="Payment due in 30 days."
+        notes="Equipment for Engineering Team."
     )
 
-    # 2. THE PRICE MISMATCH (Matches PO, but price is wrong)
-    create_invoice(
-        filename="invoice_bad_price.pdf",
-        vendor="TechSupplies Ltd",
-        date="2024-02-12",
-        po_number="PO-001",
-        items=[("5x MacBook Pro M3 (Rush Delivery)", 6500.00)],
-        total=6500.00,  # <--- This will trigger the "Price Mismatch" flag
-        notes="Includes rush delivery fee."
-    )
-
-    # 3. THE FRAUD ATTEMPT (Vendor not in DB)
-    create_invoice(
-        filename="invoice_fraud.pdf",
-        vendor="Evil Corp LLC",  # <--- This will trigger "Unknown Vendor" rejection
-        date="2024-02-12",
-        po_number="PO-001",
-        items=[("Consulting Services", 5000.00)],
-        total=5000.00,
-        notes="Please pay immediately to Bitcoin wallet..."
-    )
-
-    # 4. THE ANOMALY (Correct Vendor/PO, but suspicious price spike)
+    # 3. THE PRICE SPIKE (Matches PO-001, but price is way off)
+    # Result: 🚨 REJECTED (Price Anomaly > 1.5x baseline)
     create_invoice(
         filename="invoice_anomaly.pdf",
         vendor="TechSupplies Ltd",
         date="2024-02-12",
         po_number="PO-001",
-        items=[("5x MacBook Pro M3 (Luxury Gold Edition)", 9000.00)],
-        total=9000.00,  # <--- Over 1.5x the $5000 baseline!
-        notes="Premium gold-plated finish upgrade."
+        items=[("5x MacBook Pro M3 (Gold Plated)", 9000.00)],
+        total=9000.00,
+        notes="Special request upgrade."
+    )
+
+    # 4. THE FRAUD (Vendor not in DB)
+    # Result: 🚫 REJECTED (Unknown Vendor)
+    create_invoice(
+        filename="invoice_fraud.pdf",
+        vendor="Evil Corp LLC",
+        date="2024-02-12",
+        po_number="PO-001",
+        items=[("Consulting Services", 1000.00)],
+        total=1000.00,
+        notes="Wire transfer immediately."
+    )
+
+    # 5. THE PO MISMATCH (Vendor OK, Price OK, but PO is wrong)
+    # Result: ⚠️ FLAGGED/REJECTED (PO Not Found)
+    create_invoice(
+        filename="invoice_bad_po.pdf",
+        vendor="Office Coffee Co",
+        date="2024-02-12",
+        po_number="PO-999", # <--- Does not exist
+        items=[("Coffee Beans", 1000.00)],
+        total=1000.00,
+        notes="Urgent order."
     )

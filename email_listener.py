@@ -31,7 +31,7 @@ PAID_DIR = "./processed/paid"
 FAILED_PAY_DIR = "./processed/failed_payments"
 FLAGGED_DIR = "./processed/flagged"
 
-for folder in [PAID_DIR, FLAGGED_DIR, FAILED_PAY_DIR]:
+for folder in [INPUT_DIR, PAID_DIR, FLAGGED_DIR, FAILED_PAY_DIR]:
     if not os.path.exists(folder):
         os.makedirs(folder)
 
@@ -79,7 +79,6 @@ def send_slack_payment_error(filename, error_msg):
 
 def get_pdf_text(filepath):
     try:
-        
         with open(filepath, 'rb') as f:
             reader = PdfReader(f)
             text = ""
@@ -160,11 +159,6 @@ def process_attachment(filepath):
             details=reason_text
         )
         
-        target_folder = FAILED_PAY_DIR if decision == "DENY" and not reasons else FLAGGED_DIR
-        move_file(filepath, target_folder)
-        print(f"📂 Moved to: {target_folder}")
-        
-        # Move to FAILED folder (better than FLAGGED for technical errors)
         target_folder = FAILED_PAY_DIR if decision == "DENY" else FLAGGED_DIR
         move_file(filepath, target_folder)
         print(f"📂 Moved to: {target_folder}")

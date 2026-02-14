@@ -1,11 +1,15 @@
 import sqlite3
 
 def create_database():
-    # Connect to (or create) the database file
     conn = sqlite3.connect("ap_database.db")
     cursor = conn.cursor()
 
-    # --- 1. VENDORS TABLE (Updated with typical_price) ---
+
+    cursor.execute("DROP TABLE IF EXISTS purchase_orders")
+    cursor.execute("DROP TABLE IF EXISTS invoices")
+    cursor.execute("DROP TABLE IF EXISTS vendors")
+    cursor.execute("DROP TABLE IF EXISTS audit_log")
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS vendors (
         vendor_id INTEGER PRIMARY KEY,
@@ -16,7 +20,6 @@ def create_database():
     )
     """)
 
-    # --- 2. PURCHASE ORDERS (The "Source of Truth") ---
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS purchase_orders (
         po_number TEXT PRIMARY KEY,
@@ -30,7 +33,6 @@ def create_database():
     )
     """)
 
-    # --- 3. INVOICES ---
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS invoices (
         invoice_id TEXT PRIMARY KEY,
@@ -43,7 +45,6 @@ def create_database():
     )
     """)
 
-    # --- 4. AUDIT LOG ---
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS audit_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,22 +55,18 @@ def create_database():
     )
     """)
 
-    # --- DATA SEEDING (Updated with typical_price values) ---
     print("Seeding dummy data with anomaly baselines...")
 
-    # Scenario A: The Good Vendor (Typical price is $5000)
     cursor.execute("""
     INSERT OR IGNORE INTO vendors (vendor_id, name, trust_score, typical_price) 
     VALUES (101, 'TechSupplies Ltd', 95, 5000.0)
     """)
     
-    # Scenario B: The Coffee Vendor (Typical price is $1000)
     cursor.execute("""
     INSERT OR IGNORE INTO vendors (vendor_id, name, trust_score, typical_price) 
-    VALUES (102, 'Office Coffee Co', 80, 1000.0)
+    VALUES (102, 'Office Coffee Co', 80, 500.0)
     """)
 
-    # Create POs
     cursor.execute("""
     INSERT OR IGNORE INTO purchase_orders (po_number, vendor_id, item_description, quantity, agreed_price_per_unit, total_amount) 
     VALUES ('PO-001', 101, 'MacBook Pro M3', 5, 1000.0, 5000.0)
@@ -77,7 +74,7 @@ def create_database():
 
     cursor.execute("""
     INSERT OR IGNORE INTO purchase_orders (po_number, vendor_id, item_description, quantity, agreed_price_per_unit, total_amount) 
-    VALUES ('PO-002', 102, 'Premium Coffee Beans', 100, 10.0, 1000.0)
+    VALUES ('PO-002', 102, 'Premium Coffee Beans', 100, 5.0, 500.0)
     """)
 
     conn.commit()

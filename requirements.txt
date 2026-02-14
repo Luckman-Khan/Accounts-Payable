@@ -1,0 +1,11 @@
+langchain-google-genai
+langchain-core
+langgraph
+pydantic
+thefuzz
+streamlit
+requests
+python-dotenv
+stripe
+pypdf
+fpdf

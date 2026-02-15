@@ -44,7 +44,6 @@ def create_invoice(filename, vendor, date, po_number, items, total, notes=""):
 if __name__ == "__main__":
     
     # 1. THE AUTO-PAY (Matches PO-002, Under $1k limit)
-    # Result: ✅ APPROVED & PAID INSTANTLY
     create_invoice(
         filename="invoice_autopay.pdf",
         vendor="Office Coffee Co",
@@ -56,7 +55,6 @@ if __name__ == "__main__":
     )
 
     # 2. THE HIGH VALUE (Matches PO-001, but > $1k limit)
-    # Result: ⚖️ FLAGGED (Needs Manager Approval)
     create_invoice(
         filename="invoice_high_value.pdf",
         vendor="TechSupplies Ltd",
@@ -68,7 +66,6 @@ if __name__ == "__main__":
     )
 
     # 3. THE PRICE SPIKE (Matches PO-001, but price is way off)
-    # Result: 🚨 REJECTED (Price Anomaly > 1.5x baseline)
     create_invoice(
         filename="invoice_anomaly.pdf",
         vendor="TechSupplies Ltd",
@@ -80,7 +77,6 @@ if __name__ == "__main__":
     )
 
     # 4. THE FRAUD (Vendor not in DB)
-    # Result: 🚫 REJECTED (Unknown Vendor)
     create_invoice(
         filename="invoice_fraud.pdf",
         vendor="Evil Corp LLC",
@@ -92,12 +88,11 @@ if __name__ == "__main__":
     )
 
     # 5. THE PO MISMATCH (Vendor OK, Price OK, but PO is wrong)
-    # Result: ⚠️ FLAGGED/REJECTED (PO Not Found)
     create_invoice(
         filename="invoice_bad_po.pdf",
         vendor="Office Coffee Co",
         date="2024-02-12",
-        po_number="PO-999", # <--- Does not exist
+        po_number="PO-999",
         items=[("Coffee Beans", 1000.00)],
         total=1000.00,
         notes="Urgent order."

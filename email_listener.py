@@ -98,7 +98,6 @@ def move_file(filepath, dest_folder):
         dest_path = os.path.join(dest_folder, f"{base}_{timestamp}{ext}")
     shutil.move(filepath, dest_path)
 
-# --- 3. MAIN LOGIC ---
 
 def process_attachment(filepath):
     print(f"🚀 AI Agent Activated for: {os.path.basename(filepath)}")

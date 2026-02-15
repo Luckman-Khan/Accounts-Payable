@@ -25,11 +25,9 @@ def log_to_ledger(vendor_name, amount, currency, invoice_ref, transfer_id):
     with open(LEDGER_FILE, mode='a', newline='') as f:
         writer = csv.writer(f)
         
-        # Add Header if file is new
         if not file_exists:
             writer.writerow(["Timestamp", "Vendor", "Amount", "Currency", "GL Code", "PO Reference", "Stripe ID", "Status"])
         
-        # Write the transaction
         writer.writerow([
             timestamp, 
             vendor_name, 

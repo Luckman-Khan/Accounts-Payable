@@ -19,13 +19,11 @@ def normalize_currency(currency_input):
         "£": "gbp",
         "GBP": "gbp"
     }
-    # Clean the input: uppercase it and strip whitespace
     clean_input = str(currency_input).strip()
     return mapping.get(clean_input, "usd")
 
 def process_payment(amount, currency, vendor_name, invoice_ref):
     try:
-        # 1. NORMALIZE THE CURRENCY (Fixes the '$' error)
         stripe_currency = normalize_currency(currency)
         
         # 2. Convert to cents
